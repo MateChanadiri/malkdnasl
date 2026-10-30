@@ -1,0 +1,115 @@
+name: Build IPA
+
+# Run it from the repo's "Actions" tab → "Build IPA" → "Run workflow".
+# Produces UNSIGNED .ipa files. LiveContainer signs and runs them itself, so you need no Apple account.
+#   Music.ipa                 – for LiveContainer (no widget extension; LiveContainer can't host extensions)
+#   Music-with-widgets.ipa  – includes the widget / Live Activity extension (for normal sideloading tools)
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Also attach the IPAs to a GitHub Release (easiest way to download on your iPhone)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Select the newest Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned, Release)
+        run: |
+          set -o pipefail
+          if xcodebuild \
+              -project Music.xcodeproj \
+              -scheme Music \
+              -configuration Release \
+              -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
+              -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              DEVELOPMENT_TEAM="" \
+              > build.log 2>&1; then
+            echo "Build succeeded"
+          else
+            echo "::error::Build failed. The compiler errors are listed below (full log is in the 'build-log' artifact)."
+            grep -E "error:" build.log | sort -u | head -n 80 || true
+            exit 1
+          fi
+
+      - name: Package IPAs
+        run: |
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then echo "::error::No .app was produced"; exit 1; fi
+          APP_NAME=$(basename "$APP_PATH" .app)
+
+          # 1) full IPA (with the widget extension)
+          rm -rf Payload; mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry "$APP_NAME-with-widgets.ipa" Payload
+
+          # 2) LiveContainer IPA (extensions stripped)
+          rm -rf Payload/*.app/PlugIns
+          zip -qry "$APP_NAME.ipa" Payload
+
+          echo "IPA_NAME=$APP_NAME.ipa" >> "$GITHUB_ENV"
+          echo "APP_NAME=$APP_NAME" >> "$GITHUB_ENV"
+          ls -lh *.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipa
+          path: "*.ipa"
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Publish release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<NOTES
+          Unsigned IPA builds for LiveContainer / sideloading.
+
+          - **${APP_NAME}.ipa** – use this one in LiveContainer.
+          - **${APP_NAME}-with-widgets.ipa** – includes the widget / Live Activity extension (needs a normal signing tool).
+
+          On your iPhone: download the IPA, then in LiveContainer tap **+** and pick it from Files.
+          NOTES
+          gh release create "build-${{ github.run_number }}" ./*.ipa \
+            --title "Build ${{ github.run_number }}" \
+            --notes-file notes.md \
+            --target "${{ github.sha }}" \
+            --latest
+          echo "### Download your IPA" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ github.server_url }}/${{ github.repository }}/releases/tag/build-${{ github.run_number }}" >> "$GITHUB_STEP_SUMMARY"
