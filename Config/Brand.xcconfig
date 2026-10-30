@@ -1,0 +1,9 @@
+// ─────────────────────────────────────────────────────────────
+//  BRAND CONFIG — the product name for Info.plist, the app name on the
+//  Home Screen and every user-visible string (via Brand.name in Swift).
+//  Change these lines, push to GitHub, run the workflow, done.
+//  (Avoid double slashes in values: xcconfig treats them as comments.)
+// ─────────────────────────────────────────────────────────────
+BRAND_NAME = Music
+BRAND_BUNDLE_ID = com.local.music
+BRAND_TAGLINE = Sound. Your way.

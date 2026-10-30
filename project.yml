@@ -1,0 +1,123 @@
+# XcodeGen spec. The GitHub workflow runs `xcodegen generate` to build the Xcode project on a Mac runner,
+# so you never need a Mac or Xcode yourself. The app name lives in Config/Brand.xcconfig.
+name: Music
+options:
+  bundleIdPrefix: com.local
+configFiles:
+  Debug: Config/Brand.xcconfig
+  Release: Config/Brand.xcconfig
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Music:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    info:
+      path: Music/Info.plist
+      properties:
+        CFBundleDisplayName: $(BRAND_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BrandName: $(BRAND_NAME)
+        BrandTagline: $(BRAND_TAGLINE)
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        NSSpeechRecognitionUsageDescription: $(BRAND_NAME) recognises lyrics in your songs on this device.
+        NSAppleMusicUsageDescription: $(BRAND_NAME) looks up animated album covers in the Apple Music catalog. Nothing from your library is shared.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSSupportsLiveActivities: true
+        NSLocalNetworkUsageDescription: $(BRAND_NAME) connects to your music server on your network to stream and download your music.
+        # Self-hosted servers often run plain HTTP. NSAllowsLocalNetworking would make iOS ignore NSAllowsArbitraryLoads.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: com.local.music.goodbye
+            UIApplicationShortcutItemTitle: Goodbye — see you soon
+            UIApplicationShortcutItemSubtitle: Thanks for listening
+            UIApplicationShortcutItemIconSymbolName: hand.wave
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.local.music.theme
+            UTTypeDescription: Music Theme
+            UTTypeConformsTo: [public.json, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [musictheme]
+              public.mime-type: [application/x-music-theme]
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.local.music.8spine-module
+            UTTypeDescription: Music Server Extension
+            UTTypeConformsTo: [public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [8spine]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Audio
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.audio, public.mp3, public.mpeg-4-audio]
+          - CFBundleTypeName: Music Theme
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.local.music.theme]
+          - CFBundleTypeName: Music Server Extension
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.local.music.8spine-module]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.local.music
+            CFBundleURLSchemes: [music, eightspine]
+    sources: [Music, Shared]
+    dependencies:
+      - target: MusicWidgets
+        embed: true
+    settings:
+      base:
+        PRODUCT_NAME: $(BRAND_NAME)
+        PRODUCT_MODULE_NAME: Music
+        PRODUCT_NAME: Music
+        PRODUCT_BUNDLE_IDENTIFIER: $(BRAND_BUNDLE_ID)
+        SWIFT_VERSION: 6.0
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Music/Music.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Music/Music-Simulator.entitlements
+  MusicWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    info:
+      path: MusicWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: $(BRAND_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        BrandName: $(BRAND_NAME)
+        BrandTagline: $(BRAND_TAGLINE)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    sources: [MusicWidgets, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BRAND_BUNDLE_ID).widgets
+        SWIFT_VERSION: 6.0
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_ENTITLEMENTS: MusicWidgets/MusicWidgets.entitlements
+        SKIP_INSTALL: YES
